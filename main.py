@@ -2,98 +2,105 @@ import requests
 import random
 import string
 import time
-from datetime import datetime
+import logging
 
-characters = string.ascii_letters + string.digits
-user_agents = [
+logging.basicConfig(
+    filename='log.txt',
+    filemode='a',
+    format='[%(asctime)s] %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    level=logging.INFO
+)
+
+CHARACTERS = string.ascii_letters + string.digits
+USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
     "Mozilla/5.0 (X11; Linux x86_64)",
 ]
 
-headers_base = {
+HEADERS_BASE = {
     "Content-Type": "application/json",
     "X-Requested-With": "XMLHttpRequest",
     "Referer": "https://testnr.org/numer/",
 }
 
-captcha_url = "https://testnr.org/numer/api/generate-captcha"
-check_url = "https://testnr.org/numer/api/validate-numer"
+CAPTCHA_URL = "https://testnr.org/numer/api/generate-captcha"
+CHECK_URL = "https://testnr.org/numer/api/validate-numer"
 
-success_counter = 0
-error_counter = 0
 
-def log_to_file(message: str):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    with open("log.txt", "a", encoding="utf-8") as log_file:
-        log_file.write(f"[{timestamp}] {message}\n")
+def generate_number_and_phone():
+    number = ''.join(random.choices(CHARACTERS, k=32))
+    phone = ''.join(random.choices(string.digits, k=9))
+    return number, phone
 
-while True:
-    try:
-        session = requests.Session()
+def build_headers():
+    headers = HEADERS_BASE.copy()
+    headers["User-Agent"] = random.choice(USER_AGENTS)
+    return headers
 
-        numer = ''.join(random.choices(characters, k=32))
-        phone = ''.join(random.choices(string.digits, k=9))
+def get_captcha(session, headers):
+    response = session.post(CAPTCHA_URL, json={}, headers=headers)
+    if response.status_code == 429:
+        logging.warning("Too many CAPTCHA requests! Waiting 120 seconds...")
+        time.sleep(120)
+        return None, None
+    elif response.status_code != 200:
+        logging.error(f"CAPTCHA request failed: HTTP {response.status_code}")
+        return None, None
 
-        headers = headers_base.copy()
-        headers["User-Agent"] = random.choice(user_agents)
+    data = response.json()
+    return data.get("token"), data.get("code")
 
-        captcha_response = session.post(captcha_url, json={}, headers=headers)
-        if captcha_response.status_code == 429:
-            msg = "Too many CAPTCHA requests! Waiting 120 seconds..."
+def validate_number(session, headers, number, phone, captcha_token, captcha_code):
+    payload = {
+        "numer": number,
+        "phone": phone,
+        "captchaToken": captcha_token,
+        "captchaCode": captcha_code
+    }
+
+    response = session.post(CHECK_URL, json=payload, headers=headers)
+    if response.status_code != 200:
+        logging.error(f"Validation request failed: HTTP {response.status_code}")
+        return None
+
+    return response.json()
+
+def main_loop():
+    success_counter = 0
+    error_counter = 0
+
+    while True:
+        try:
+            session = requests.Session()
+            number, phone = generate_number_and_phone()
+            headers = build_headers()
+
+            captcha_token, captcha_code = get_captcha(session, headers)
+            if not captcha_token or not captcha_code:
+                error_counter += 1
+                continue
+
+            result = validate_number(session, headers, number, phone, captcha_token, captcha_code)
+            if not result:
+                error_counter += 1
+                continue
+
+            success_counter += 1
+            msg = f"[{success_counter}] SUCCESS - {result}"
             print(msg)
-            log_to_file(msg)
-            time.sleep(120)
-            continue
-        elif captcha_response.status_code != 200:
-            msg = f"CAPTCHA request failed: HTTP {captcha_response.status_code}"
-            print(msg)
-            log_to_file(msg)
+            logging.info(msg)
+
+            time.sleep(random.uniform(8, 30))
+
+        except requests.exceptions.RequestException as e:
             error_counter += 1
-            continue
+            logging.error(f"[Network error] {e}")
 
-        captcha_data = captcha_response.json()
-        captcha_token = captcha_data.get("token")
-        captcha_code = captcha_data.get("code")
-        if not captcha_token or not captcha_code:
-            msg = "Missing CAPTCHA token or code"
-            print(msg)
-            log_to_file(msg)
+        except Exception as e:
             error_counter += 1
-            continue
+            logging.exception(f"[Unexpected error] {e}")
 
-        payload = {
-            "numer": numer,
-            "phone": phone,
-            "captchaToken": captcha_token,
-            "captchaCode": captcha_code
-        }
-
-        check_response = session.post(check_url, json=payload, headers=headers)
-        if check_response.status_code != 200:
-            msg = f"Validation request failed: HTTP {check_response.status_code}"
-            print(msg)
-            log_to_file(msg)
-            error_counter += 1
-            continue
-
-        response_data = check_response.json()
-        success_counter += 1
-
-        print(f"[{success_counter}] SUCCESS - {response_data}")
-
-        log_to_file(f"{success_counter} {response_data}")
-
-        time.sleep(random.uniform(8, 30))
-
-    except requests.exceptions.RequestException as e:
-        error_counter += 1
-        msg = f"[Network error] {e}"
-        print(msg)
-        log_to_file(msg)
-
-    except Exception as e:
-        error_counter += 1
-        msg = f"[Unexpected error] {e}"
-        print(msg)
-        log_to_file(msg)
+if __name__ == "__main__":
+    main_loop()
