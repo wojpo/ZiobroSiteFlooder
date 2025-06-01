@@ -6,7 +6,8 @@
 
 [testnr.org](https://testnr.org) to strona służąca do walidacji numerów zaświadczeń wyborczych. Umożliwia sprawdzenie, czy dane zaświadczenie zostało użyte wielokrotnie. **Nie jest to oficjalne narzędzie państwowe.**
 
-Serwis był niewłaściwie promowany przez Zbigniewa Ziobrę, byłego ministra sprawiedliwości, jako rzeczywiste narzędzie przeznaczone dla komisji wyborczych — co jest nieprawdą i mogło wprowadzać opinię publiczną w błąd.
+Serwis był promowany przez Zbigniewa Ziobrę, byłego ministra sprawiedliwości, jako rzeczywiste narzędzie przeznaczone dla komisji wyborczych — co jest **nieprawdą** i mogło wprowadzać opinię publiczną w błąd.  
+Dodatkowo sam serwis budzi kontrowersje ze względu na hosting zlokalizowany w Islandii, co rodzi pytania o przejrzystość i bezpieczeństwo przetwarzania danych.
 
 ## 🎯 Cel projektu
 
